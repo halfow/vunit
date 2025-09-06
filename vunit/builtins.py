@@ -57,7 +57,7 @@ class Builtins(object):
             base_file_name = Path(file_name).name
 
             standards = set()
-            for standard in VHDL.STANDARDS:
+            for standard in VHDL:
                 standard_name = str(standard)
                 if standard_name + "p" in base_file_name:
                     standards.update(standard.and_later)
@@ -231,7 +231,7 @@ in your VUnit Git repository? You have to do this first if installing using setu
                 continue
 
             standards = set()
-            for standard in VHDL.STANDARDS:
+            for standard in VHDL:
                 standard_name = str(standard)
                 if standard_name + "p" in base_file_name:
                     standards.update(standard.and_later)

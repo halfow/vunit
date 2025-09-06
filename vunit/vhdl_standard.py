@@ -8,78 +8,42 @@
 Contains type defining VHDL standards and operations on them
 """
 
-from functools import total_ordering
+from __future__ import annotations
+
+from enum import IntEnum
 
 
-@total_ordering
-class VHDLStandard(object):
-    """
-    VHDL standard object which encapsulates knowledge about VHDL standards
-    """
+class VHDLStandard(IntEnum):
+    """VHDL Standards."""
+    STD_1993 = 1993
+    STD_2002 = 2002
+    STD_2008 = 2008
+    STD_2019 = 2019
 
-    _STANDARDS = {"1993", "2002", "2008", "2019"}
-
-    def __init__(self, standard_name):
-        if standard_name in self._STANDARDS:
-            self._standard = standard_name
-        else:
-            for standard in self._STANDARDS:
-                if standard.endswith(standard_name) and len(standard_name) == 2:
-                    self._standard = standard
-                    break
-            else:
-                raise ValueError(f"Unknown standard '{standard_name!s}'")
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self._standard == other._standard  # pylint: disable=protected-access
-        return False
-
-    def __lt__(self, other):
-        return int(self._standard) < int(other._standard)  # pylint: disable=protected-access
-
-    def __str__(self):
-        if self == VHDL.STD_1993:
-            # For backwards compatibility due to legacy reasons
-            return "93"
-        return self._standard
-
-    def __repr__(self):
-        return f"VHDLStandard({self._standard!r})"
-
-    def __hash__(self):
-        return hash(self._standard)
+    def __str__(self) -> str:
+        # For backwards compatibility due to legacy reasons
+        return "93" if self == self.__class__.STD_1993 else str(self.value)
 
     @property
-    def supports_context(self):
-        return self >= VHDL.STD_2008
+    def supports_context(self) -> bool:
+        return self >= self.__class__.STD_2008
 
     @property
-    def and_later(self):
-        """
-        Return a set including this standard and all later standards
-        """
-        return {standard for standard in VHDL.STANDARDS if standard >= self}
+    def and_later(self) -> set[VHDLStandard]:
+        """Selected and later standards."""
+        return {s for s in self.__class__ if s >= self}
 
     @property
-    def and_earlier(self):
-        """
-        Return a set including this standard and all earlier standards
-        """
-        return {standard for standard in VHDL.STANDARDS if standard <= self}
+    def and_earlier(self) -> set[VHDLStandard]:
+        """Selected and earlier standards."""
+        return {s for s in self.__class__ if s <= self}
+
+    @classmethod
+    def standard(cls, year: str) -> VHDLStandard:
+        """Resolve standard from 2 or 4 digit string."""
+        # TODO: better name would be cls.from_string()
+        short_form = {str(v)[-2:]: v for v in cls}
+        return cls(short_form.get(year, year)) # type: ignore  # Throw a nice error
 
 
-class VHDL(object):
-    """
-    Just a namespace for standards
-    """
-
-    STD_1993 = VHDLStandard("1993")
-    STD_2002 = VHDLStandard("2002")
-    STD_2008 = VHDLStandard("2008")
-    STD_2019 = VHDLStandard("2019")
-    STANDARDS = [STD_1993, STD_2002, STD_2008, STD_2019]
-
-    @staticmethod
-    def standard(name):
-        return VHDLStandard(name)
+VHDL = VHDLStandard
