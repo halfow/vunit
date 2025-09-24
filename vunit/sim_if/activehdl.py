@@ -8,17 +8,26 @@
 Interface towards Aldec Active HDL
 """
 
-from functools import total_ordering
-from pathlib import Path
+from __future__ import annotations
+
+import logging
 import os
 import re
-import logging
 import sys
+from functools import total_ordering
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
-from ..ostools import Process, write_file, file_exists, renew_path
+from ..ostools import Process, file_exists, renew_path, write_file
 from ..test.suites import get_result_file_name
-from . import SimulatorInterface, ListOfStringOption, StringOption
-from .vsim_simulator_mixin import get_is_test_suite_done_tcl, fix_path
+from . import ListOfStringOption, SimulatorInterface, StringOption
+from .vsim_simulator_mixin import fix_path, get_is_test_suite_done_tcl
+
+if TYPE_CHECKING:
+    from vunit.library import Library
+    from vunit.source_file import VerilogSourceFile, VHDLSourceFile
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -85,7 +94,7 @@ class ActiveHDLInterface(SimulatorInterface):
         self._library_cfg = str(Path(output_path) / "library.cfg")
         self._prefix = prefix
         self._create_library_cfg()
-        self._libraries = []
+        self._libraries: list[Library] = []
         self._coverage_files = set()
 
     def setup_library_mapping(self, project):
@@ -98,15 +107,15 @@ class ActiveHDLInterface(SimulatorInterface):
             self._libraries.append(library)
             self.create_library(library.name, library.directory, mapped_libraries)
 
-    def compile_source_file_command(self, source_file):
+    def compile_source_file_command(self, source_file: VHDLSourceFile | VerilogSourceFile):
         """
         Returns the command to compile a single source_file
         """
         if source_file.is_vhdl:
-            return self.compile_vhdl_file_command(source_file)
+            return self.compile_vhdl_file_command(source_file)  # type: ignore
 
         if source_file.is_any_verilog:
-            return self.compile_verilog_file_command(source_file)
+            return self.compile_verilog_file_command(source_file)  # type: ignore
 
         LOGGER.error("Unknown file type: %s", source_file.file_type)
         raise CompileError
@@ -118,7 +127,7 @@ class ActiveHDLInterface(SimulatorInterface):
         """
         return f"-{vhdl_standard!s}"
 
-    def compile_vhdl_file_command(self, source_file):
+    def compile_vhdl_file_command(self, source_file: VHDLSourceFile):
         """
         Returns the command to compile a VHDL file
         """
@@ -134,17 +143,17 @@ class ActiveHDLInterface(SimulatorInterface):
                 self._std_str(source_file.get_vhdl_standard()),
                 "-work",
                 source_file.library.name,
-                source_file.name,
+                str(source_file.name),
             ]
         )
 
-    def compile_verilog_file_command(self, source_file):
+    def compile_verilog_file_command(self, source_file: VerilogSourceFile):
         """
         Returns the command to compile a Verilog file
         """
         args = [str(Path(self._prefix) / "vlog"), "-quiet", "-lc", self._library_cfg]
         args += source_file.compile_options.get("activehdl.vlog_flags", [])
-        args += ["-work", source_file.library.name, source_file.name]
+        args += ["-work", source_file.library.name, str(source_file.name)]
         for library in self._libraries:
             args += ["-l", library.name]
         for include_dir in source_file.include_dirs:
@@ -268,7 +277,7 @@ class ActiveHDLInterface(SimulatorInterface):
 proc vunit_load {{}} {{
     {set_generic_str}
     set vsim_failed [catch {{
-        vsim {' '.join(vsim_flags)}
+        vsim {" ".join(vsim_flags)}
     }}]
     if {{${{vsim_failed}}}} {{
         return true

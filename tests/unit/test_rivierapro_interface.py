@@ -8,16 +8,16 @@
 Test the RivieraPro interface
 """
 
-
+import os
 import unittest
 from pathlib import Path
-import os
 from shutil import rmtree
 from unittest import mock
-from vunit.sim_if.rivierapro import RivieraProInterface
-from vunit.project import Project
+
 from vunit.ostools import renew_path, write_file
-from vunit.vhdl_standard import VHDL
+from vunit.project import Project
+from vunit.sim_if.rivierapro import RivieraProInterface
+from vunit.vhdl_standard import VHDLStandard
 
 
 class TestRivieraProInterface(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestRivieraProInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("2019"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDLStandard.resolve("2019"))
         simif.compile_project(project)
         process.assert_any_call(
             [str(Path("prefix") / "vlib"), "lib", "lib_path"],
@@ -67,7 +67,7 @@ class TestRivieraProInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("2008"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDLStandard.resolve("2008"))
         simif.compile_project(project)
         process.assert_any_call(
             [str(Path("prefix") / "vlib"), "lib", "lib_path"],
@@ -101,7 +101,7 @@ class TestRivieraProInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("2002"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDLStandard.resolve("2002"))
         simif.compile_project(project)
         process.assert_any_call(
             [str(Path("prefix") / "vlib"), "lib", "lib_path"],
@@ -135,7 +135,7 @@ class TestRivieraProInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("93"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDLStandard.resolve("93"))
         simif.compile_project(project)
         process.assert_any_call(
             [str(Path("prefix") / "vlib"), "lib", "lib_path"],

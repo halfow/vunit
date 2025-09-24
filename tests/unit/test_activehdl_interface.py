@@ -8,16 +8,15 @@
 Test the ActiveHDL interface
 """
 
-
+import os
 import unittest
 from pathlib import Path
-import os
 from shutil import rmtree
 from unittest import mock
-from vunit.sim_if.activehdl import ActiveHDLInterface, VersionConsumer, Version
-from vunit.project import Project
+
 from vunit.ostools import renew_path, write_file
-from vunit.vhdl_standard import VHDL
+from vunit.project import Project
+from vunit.sim_if.activehdl import ActiveHDLInterface, Version, VersionConsumer
 
 
 class MockProcess(object):
@@ -53,7 +52,7 @@ class TestActiveHDLInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard(standard))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=standard)
         simif.compile_project(project)
         process.assert_any_call(
             [str(Path("prefix") / "vlib"), "lib", "lib_path"],

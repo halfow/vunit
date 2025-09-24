@@ -9,24 +9,28 @@
 """
 Functionality to represent and operate on a HDL code project
 """
-from typing import Optional, Union
-from pathlib import Path
+
+from __future__ import annotations
+
 import logging
 from collections import OrderedDict
-from vunit.hashing import hash_string
-from vunit.dependency_graph import DependencyGraph, CircularDependencyException
-from vunit.vhdl_parser import VHDLParser
-from vunit.parsing.verilog.parser import VerilogParser
-from vunit.exceptions import CompileError
+from pathlib import Path
+from typing import Union
+
 from vunit import ostools
+from vunit.dependency_graph import CircularDependencyException, DependencyGraph
+from vunit.exceptions import CompileError
+from vunit.hashing import hash_string
+from vunit.library import Library
+from vunit.parsing.verilog.parser import VerilogParser
 from vunit.source_file import (
-    VERILOG_FILE_TYPES,
+    Language,
     SourceFile,
     VerilogSourceFile,
     VHDLSourceFile,
 )
-from vunit.vhdl_standard import VHDL, VHDLStandard
-from vunit.library import Library
+from vunit.vhdl_parser import VHDLParser
+from vunit.vhdl_standard import VHDLStandard
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,10 +49,10 @@ class Project(object):  # pylint: disable=too-many-instance-attributes
         self._database = database
         self._vhdl_parser = VHDLParser(database=self._database)
         self._verilog_parser = VerilogParser(database=self._database)
-        self._libraries = OrderedDict()
+        self._libraries: dict[str, Library] = OrderedDict()
         # Mapping between library lower case name and real library name
         self._lower_library_names_dict = {}
-        self._source_files_in_order = []
+        self._source_files_in_order: list[SourceFile] = []
         self._manual_dependencies = []
         self._depend_on_package_body = depend_on_package_body
         self._builtin_libraries = set(["ieee", "std"])
@@ -84,7 +88,7 @@ class Project(object):  # pylint: disable=too-many-instance-attributes
         self,
         logical_name,
         directory: Union[str, Path],
-        vhdl_standard: VHDLStandard = VHDL.STD_2008,
+        vhdl_standard: str | VHDLStandard = VHDLStandard.STD_2008,
         is_external=False,
     ):
         """
@@ -103,7 +107,7 @@ class Project(object):  # pylint: disable=too-many-instance-attributes
             if not dpath.is_dir():
                 raise ValueError(f"External library must be a directory. Got {dstr!r}")
 
-        library = Library(logical_name, dstr, vhdl_standard, is_external=is_external)
+        library = Library(logical_name, dstr, VHDLStandard.resolve(vhdl_standard), is_external=is_external)
         LOGGER.debug("Adding library %s with path %s", logical_name, dstr)
 
         self._libraries[logical_name] = library
@@ -117,7 +121,7 @@ class Project(object):  # pylint: disable=too-many-instance-attributes
         file_type="vhdl",
         include_dirs=None,
         defines=None,
-        vhdl_standard: Optional[VHDLStandard] = None,
+        vhdl_standard: str | VHDLStandard | None = None,
         no_parse=False,
     ):
         """
@@ -125,36 +129,40 @@ class Project(object):  # pylint: disable=too-many-instance-attributes
 
         :param no_parse: Do not parse file contents
         """
-        fname = file_name if isinstance(file_name, Path) else Path(file_name)
+        LOGGER.debug("Adding source file %s to library %s", str(file_name), library_name)
+
+        fname = Path(file_name)
+        language = Language(file_type)
+
         if not fname.exists():
             raise ValueError(f"File {str(fname)!r} does not exist")
 
-        LOGGER.debug("Adding source file %s to library %s", str(fname), library_name)
         library = self._libraries[library_name]
 
-        if file_type == "vhdl":
-            assert include_dirs is None
-            source_file: SourceFile = VHDLSourceFile(
-                fname,
-                library,
+        if language == Language.VHDL and include_dirs is not None:
+            raise AssertionError()
+
+        source_file: VHDLSourceFile | VerilogSourceFile
+        if language == Language.VHDL:
+            source_file = VHDLSourceFile(
+                name=fname,
+                library=library,
                 vhdl_parser=self._vhdl_parser,
                 database=self._database,
                 vhdl_standard=library.vhdl_standard if vhdl_standard is None else vhdl_standard,
                 no_parse=no_parse,
             )
-        elif file_type in VERILOG_FILE_TYPES:
+        else:
             source_file = VerilogSourceFile(
-                file_type,
-                fname,
-                library,
+                file_type=language,
+                name=fname,
+                library=library,
                 verilog_parser=self._verilog_parser,
                 database=self._database,
                 include_dirs=include_dirs,
                 defines=defines,
                 no_parse=no_parse,
             )
-        else:
-            raise ValueError(file_type)
 
         old_source_file = library.add_source_file(source_file)
         if id(source_file) == id(old_source_file):
@@ -212,7 +220,7 @@ As shown below:
 
 {num - 1}|  {content[num - 2].rstrip()}
 {num}|  {line.rstrip()}
-{num + 1}|+ {line.split('=')[0].rstrip()}.add_vhdl_builtins()  # Add this line!
+{num + 1}|+ {line.split("=")[0].rstrip()}.add_vhdl_builtins()  # Add this line!
 {num + 2}|  {content[num].rstrip()}
 {num + 3}|  {content[num + 1].rstrip()}
 """
@@ -448,9 +456,7 @@ See https://github.com/VUnit/vunit/issues/777 and http://vunit.github.io/hdl_lib
         )
         add_dependencies(self._find_primary_secondary_design_unit_dependencies, vhdl_files)
 
-        verilog_files = [
-            source_file for source_file in self._source_files_in_order if source_file.file_type in VERILOG_FILE_TYPES
-        ]
+        verilog_files = [s for s in self._source_files_in_order if s.file_type.is_verilog()]
 
         add_dependencies(self._find_verilog_package_dependencies, verilog_files)
         add_dependencies(self._find_verilog_module_dependencies, verilog_files)
@@ -470,7 +476,7 @@ See https://github.com/VUnit/vunit/issues/777 and http://vunit.github.io/hdl_lib
         """
         LOGGER.error(
             "Found circular dependency:\n%s",
-            " ->\n".join(source_file.name for source_file in exception.path),
+            " ->\n".join(str(s.name) for s in exception.path),
         )
 
     def get_compile_timestamps(self, files):

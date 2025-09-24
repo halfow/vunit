@@ -10,7 +10,12 @@
 Functionality to represent and operate on a HDL code library
 """
 
+from __future__ import annotations
+
 import logging
+from pathlib import Path
+
+from vunit.source_file import VerilogSourceFile, VHDLSourceFile
 from vunit.vhdl_standard import VHDLStandard
 
 LOGGER = logging.getLogger(__name__)
@@ -21,14 +26,20 @@ class Library(object):  # pylint: disable=too-many-instance-attributes
     Represents a VHDL library
     """
 
-    def __init__(self, name: str, directory: str, vhdl_standard: VHDLStandard, is_external=False):
+    def __init__(
+        self,
+        name: str,
+        directory: str,
+        vhdl_standard: VHDLStandard | str,
+        is_external: bool = False,
+    ):
         self.name = name
         self.directory = directory
 
         # Default VHDL standard for files added unless explicitly set per file
-        self.vhdl_standard = vhdl_standard
+        self.vhdl_standard = VHDLStandard.resolve(vhdl_standard)
 
-        self._source_files = {}  # type: ignore
+        self._source_files: dict[Path, VHDLSourceFile | VerilogSourceFile] = {}
 
         # Entity objects
         self._entities = {}  # type: ignore
@@ -46,7 +57,7 @@ class Library(object):  # pylint: disable=too-many-instance-attributes
 
         self._is_external = is_external
 
-    def add_source_file(self, source_file):
+    def add_source_file(self, source_file: VHDLSourceFile | VerilogSourceFile):
         """
         Add source file to library unless it exists
 
@@ -70,11 +81,11 @@ class Library(object):  # pylint: disable=too-many-instance-attributes
 
         return source_file
 
-    def get_source_file(self, file_name):
+    def get_source_file(self, file_name: str | Path):
         """
         Get source file with file name or raise KeyError
         """
-        return self._source_files[file_name]
+        return self._source_files[Path(file_name)]
 
     @property
     def is_external(self):

@@ -8,13 +8,14 @@
 UI common functions
 """
 
-from pathlib import Path
 from glob import glob
-from os import environ
 from logging import getLogger
-from typing import Optional, List
+from os import environ
+from pathlib import Path
+from typing import List, Optional
+
 from ..sim_if import is_string_not_iterable
-from ..vhdl_standard import VHDL, VHDLStandard
+from ..vhdl_standard import VHDLStandard
 
 LOGGER = getLogger(__name__)
 
@@ -26,10 +27,10 @@ def select_vhdl_standard(vhdl_standard: Optional[str] = None) -> VHDLStandard:
     Select VHDL standard either from class initialization or according to environment variable VUNIT_VHDL_STANDARD
     """
     if vhdl_standard is not None:
-        return VHDL.standard(vhdl_standard)
+        return VHDLStandard.resolve(vhdl_standard)
 
     try:
-        return VHDL.standard(environ.get("VUNIT_VHDL_STANDARD", "2008"))
+        return VHDLStandard.resolve(environ.get("VUNIT_VHDL_STANDARD", "2008"))
     except ValueError:
         LOGGER.error("Invalid standard set by VUNIT_VHDL_STANDARD environment variable")
         raise

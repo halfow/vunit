@@ -8,20 +8,27 @@
 Interface for GHDL simulator
 """
 
-from pathlib import Path
-from os import environ, makedirs, remove
+from __future__ import annotations
+
 import logging
-import subprocess
-import shlex
 import re
+import shlex
 import shutil
+import subprocess
 from json import dump
-from sys import stdout  # To avoid output catched in non-verbose mode
+from os import environ, makedirs, remove
+from pathlib import Path
+from sys import stdout
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
 from ..ostools import Process
-from . import SimulatorInterface, ListOfStringOption, StringOption, BooleanOption
-from ..vhdl_standard import VHDL
+from ..vhdl_standard import VHDLStandard
+from . import BooleanOption, ListOfStringOption, SimulatorInterface, StringOption
 from ._viewermixin import ViewerMixin
+
+if TYPE_CHECKING:
+    from vunit.source_file import VHDLSourceFile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,7 +128,7 @@ class GHDLInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-man
         """
         Return if the simulation should fail with nonzero exit codes
         """
-        return self._vhdl_standard >= VHDL.STD_2008
+        return self._vhdl_standard >= VHDLStandard.STD_2008
 
     @classmethod
     def _get_version_output(cls, prefix):
@@ -142,7 +149,7 @@ class GHDLInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-man
         """
         Determine if GHDL has builtin coverage support
         """
-        return not re.match(r"coverage ", cls._get_help_output(prefix)) is None
+        return re.match(r"coverage ", cls._get_help_output(prefix)) is not None
 
     @classmethod
     def determine_backend(cls, prefix):
@@ -226,7 +233,7 @@ class GHDLInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-man
         )
 
         if not vhdl_standards:
-            self._vhdl_standard = VHDL.STD_2008
+            self._vhdl_standard = VHDLStandard.STD_2008
         elif len(vhdl_standards) != 1:
             raise RuntimeError(f"GHDL cannot handle mixed VHDL standards, found {list(vhdl_standards)!r}")
         else:
@@ -247,18 +254,18 @@ class GHDLInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-man
         """
         Convert standard to format of GHDL command line flag
         """
-        if vhdl_standard == VHDL.STD_2002:
+        if vhdl_standard == VHDLStandard.STD_2002:
             return "02"
 
-        if vhdl_standard == VHDL.STD_2008:
+        if vhdl_standard == VHDLStandard.STD_2008:
             return "08"
 
-        if vhdl_standard == VHDL.STD_1993:
+        if vhdl_standard == VHDLStandard.STD_1993:
             return "93"
 
         raise ValueError(f"Invalid VHDL standard {vhdl_standard!s}")
 
-    def compile_vhdl_file_command(self, source_file):
+    def compile_vhdl_file_command(self, source_file: VHDLSourceFile):
         """
         Returns the command to compile a vhdl file
         """
@@ -282,12 +289,10 @@ class GHDLInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-man
             #   -ftest-coverages creates .gcno notes files needed by gcov
             #   -fprofile-arcs creates branch profiling in .gcda database files
             cmd += ["-fprofile-arcs", "-ftest-coverage"]
-        cmd += [source_file.name]
+        cmd += [str(source_file.name)]
         return cmd
 
-    def _get_command(
-        self, config, output_path, elaborate_only, ghdl_e, test_suite_name, wave_file
-    ):  # pylint: disable=too-many-branches,too-many-arguments,too-many-positional-arguments
+    def _get_command(self, config, output_path, elaborate_only, ghdl_e, test_suite_name, wave_file):  # pylint: disable=too-many-branches,too-many-arguments
         """
         Return GHDL simulation command
         """

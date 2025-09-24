@@ -15,13 +15,14 @@ from enum import IntEnum
 
 class VHDLStandard(IntEnum):
     """VHDL Standards."""
+
     STD_1993 = 1993
     STD_2002 = 2002
     STD_2008 = 2008
     STD_2019 = 2019
 
     def __str__(self) -> str:
-        # For backwards compatibility due to legacy reasons
+        """Special Management of 1993 for backwards compatibility due to legacy reasons."""
         return "93" if self == self.__class__.STD_1993 else str(self.value)
 
     @property
@@ -39,11 +40,13 @@ class VHDLStandard(IntEnum):
         return {s for s in self.__class__ if s <= self}
 
     @classmethod
-    def standard(cls, year: str) -> VHDLStandard:
+    def _missing_(cls, value):
+        """Guide the towards correct usage."""
+        allowed = ", ".join([repr(m.value) for m in cls])
+        raise ValueError(f"Unsupported VHDL standard. Supported standards are: {allowed}")
+
+    @classmethod
+    def resolve(cls, year: str | VHDLStandard) -> VHDLStandard:
         """Resolve standard from 2 or 4 digit string."""
-        # TODO: better name would be cls.from_string()
-        short_form = {str(v)[-2:]: v for v in cls}
-        return cls(short_form.get(year, year)) # type: ignore  # Throw a nice error
-
-
-VHDL = VHDLStandard
+        short_form: dict[str | VHDLStandard, VHDLStandard] = {str(v)[-2:]: v for v in cls}
+        return cls(short_form.get(year, int(year)))

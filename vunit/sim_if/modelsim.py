@@ -8,17 +8,24 @@
 Interface towards Mentor Graphics ModelSim
 """
 
-from pathlib import Path
-import os
+from __future__ import annotations
+
 import logging
-from threading import Lock, Event
-from time import sleep
+import os
 from configparser import RawConfigParser
+from pathlib import Path
+from threading import Event, Lock
+from time import sleep
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
-from ..ostools import write_file, Process, file_exists
-from ..vhdl_standard import VHDL
-from . import SimulatorInterface, ListOfStringOption, StringOption, BooleanOption
+from ..ostools import Process, file_exists, write_file
+from ..vhdl_standard import VHDLStandard
+from . import BooleanOption, ListOfStringOption, SimulatorInterface, StringOption
 from .vsim_simulator_mixin import VsimSimulatorMixin, fix_path
+
+if TYPE_CHECKING:
+    from vunit.source_file import VerilogSourceFile, VHDLSourceFile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -159,15 +166,15 @@ class ModelSimInterface(VsimSimulatorMixin, SimulatorInterface):  # pylint: disa
             self._libraries.append(library)
             self.create_library(library.name, library.directory, mapped_libraries)
 
-    def compile_source_file_command(self, source_file):
+    def compile_source_file_command(self, source_file: VHDLSourceFile | VerilogSourceFile):
         """
         Returns the command to compile a single source file
         """
         if source_file.is_vhdl:
-            return self.compile_vhdl_file_command(source_file)
+            return self.compile_vhdl_file_command(source_file)  # type: ignore
 
         if source_file.is_any_verilog:
-            return self.compile_verilog_file_command(source_file)
+            return self.compile_verilog_file_command(source_file)  # type: ignore
 
         LOGGER.error("Unknown file type: %s", source_file.file_type)
         raise CompileError
@@ -177,12 +184,12 @@ class ModelSimInterface(VsimSimulatorMixin, SimulatorInterface):  # pylint: disa
         """
         Convert standard to format of Modelsim command line flag
         """
-        if vhdl_standard <= VHDL.STD_2008:
+        if vhdl_standard <= VHDLStandard.STD_2008:
             return f"-{vhdl_standard!s}"
 
         raise ValueError(f"Invalid VHDL standard {vhdl_standard!s}")
 
-    def compile_vhdl_file_command(self, source_file):
+    def compile_vhdl_file_command(self, source_file: VHDLSourceFile):
         """
         Returns the command to compile a vhdl file
         """
@@ -198,11 +205,11 @@ class ModelSimInterface(VsimSimulatorMixin, SimulatorInterface):  # pylint: disa
                 self._std_str(source_file.get_vhdl_standard()),
                 "-work",
                 source_file.library.name,
-                source_file.name,
+                str(source_file.name),
             ]
         )
 
-    def compile_verilog_file_command(self, source_file):
+    def compile_verilog_file_command(self, source_file: VerilogSourceFile):
         """
         Returns the command to compile a verilog file
         """
@@ -215,7 +222,7 @@ class ModelSimInterface(VsimSimulatorMixin, SimulatorInterface):  # pylint: disa
         if source_file.is_system_verilog:
             args += ["-sv"]
         args += source_file.compile_options.get("modelsim.vlog_flags", [])
-        args += ["-work", source_file.library.name, source_file.name]
+        args += ["-work", source_file.library.name, str(source_file.name)]
 
         for library in self._libraries:
             args += ["-L", library.name]
@@ -355,9 +362,7 @@ proc vunit_optimize {{vopt_extra_args ""}} {"""
 
     return false
 }}
-""".format(
-            vopt_flags=" ".join(vopt_flags)
-        )
+""".format(vopt_flags=" ".join(vopt_flags))
 
         return tcl
 

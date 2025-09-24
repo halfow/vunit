@@ -8,16 +8,23 @@
 Interface for the Cadence Incisive simulator
 """
 
-from pathlib import Path
-from os.path import relpath
+from __future__ import annotations
+
+import logging
 import os
 import subprocess
-import logging
+from os.path import relpath
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
-from ..ostools import write_file, file_exists
-from ..vhdl_standard import VHDL
-from . import SimulatorInterface, run_command, ListOfStringOption
+from ..ostools import file_exists, write_file
+from ..vhdl_standard import VHDLStandard
+from . import ListOfStringOption, SimulatorInterface, run_command
 from .cds_file import CDSFile
+
+if TYPE_CHECKING:
+    from vunit.source_file import SourceFile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -150,7 +157,7 @@ define work "{self._output_path}/libraries/work"
             self._libraries.append(library)
             self.create_library(library.name, library.directory, mapped_libraries)
 
-    def compile_source_file_command(self, source_file):
+    def compile_source_file_command(self, source_file: SourceFile):
         """
         Returns the command to compile a single source file
         """
@@ -167,13 +174,13 @@ define work "{self._output_path}/libraries/work"
         """
         Convert standard to format of irun command line flag
         """
-        if vhdl_standard == VHDL.STD_2002:
+        if vhdl_standard == VHDLStandard.STD_2002:
             return "-v200x -extv200x"
 
-        if vhdl_standard == VHDL.STD_2008:
+        if vhdl_standard == VHDLStandard.STD_2008:
             return "-v200x -extv200x"
 
-        if vhdl_standard == VHDL.STD_1993:
+        if vhdl_standard == VHDLStandard.STD_1993:
             return "-v93"
 
         raise ValueError(f"Invalid VHDL standard {vhdl_standard!s}")
@@ -285,9 +292,7 @@ define work "{self._output_path}/libraries/work"
 
         return f"{config.vhdl_configuration_name!s}"
 
-    def simulate(
-        self, output_path, test_suite_name, config, elaborate_only=False
-    ):  # pylint: disable=too-many-locals,too-many-branches
+    def simulate(self, output_path, test_suite_name, config, elaborate_only=False):  # pylint: disable=too-many-locals,too-many-branches
         """
         Elaborates and Simulates with entity as top level using generics
         """

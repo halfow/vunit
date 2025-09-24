@@ -8,15 +8,21 @@
 Simulator interface(s)
 """
 
-import sys
+from __future__ import annotations
+
 import os
-from os import environ, listdir, pathsep
 import subprocess
+import sys
+from os import environ, listdir, pathsep
 from pathlib import Path
-from typing import List
-from ..ostools import Process, simplify_path
-from ..exceptions import CompileError
+from typing import TYPE_CHECKING, List
+
 from ..color_printer import NO_COLOR_PRINTER
+from ..exceptions import CompileError
+from ..ostools import Process, simplify_path
+
+if TYPE_CHECKING:
+    from vunit.project import Project
 
 
 class Option(object):
@@ -45,6 +51,7 @@ class SimulatorInterface(object):  # pylint: disable=too-many-public-methods
     package_users_depend_on_bodies = False
     compile_options: List[Option] = []
     sim_options: List[Option] = []
+    _gui: str
 
     # True if simulator supports ANSI colors in GUI mode
     supports_colors_in_gui = False
@@ -253,7 +260,7 @@ class SimulatorInterface(object):  # pylint: disable=too-many-public-methods
 
     def compile_source_files(
         self,
-        project,
+        project: Project,
         printer=NO_COLOR_PRINTER,
         continue_on_error=False,
         target_files=None,
@@ -310,7 +317,7 @@ class SimulatorInterface(object):  # pylint: disable=too-many-public-methods
         else:
             printer.write("Re-compile not needed\n")
 
-    def compile_source_file_command(self, source_file):  # pylint: disable=unused-argument
+    def compile_source_file_command(self, source_file) -> list[str]:
         raise NotImplementedError
 
     @staticmethod
@@ -352,9 +359,7 @@ def check_output(command, env=None):
     Wrapper arround subprocess.check_output
     """
     try:
-        output = subprocess.check_output(  # pylint: disable=unexpected-keyword-arg
-            command, env=env, stderr=subprocess.STDOUT
-        )
+        output = subprocess.check_output([str(x) for x in command], env=env, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as err:
         err.output = err.output.decode("utf-8")
         raise err

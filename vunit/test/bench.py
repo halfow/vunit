@@ -8,17 +8,18 @@
 Contains classes to represent a test bench and test cases
 """
 
-import logging
-import re
 import bisect
 import collections
+import logging
+import re
 from collections import OrderedDict
-from ..ostools import file_exists
+
 from ..cached import cached
-from ..vhdl_parser import remove_comments as remove_vhdl_comments
+from ..configuration import DEFAULT_NAME, Configuration, ConfigurationVisitor
+from ..ostools import file_exists
 from ..parsing.encodings import HDL_FILE_ENCODING
-from ..source_file import file_type_of, VERILOG_FILE_TYPES
-from ..configuration import Configuration, ConfigurationVisitor, DEFAULT_NAME
+from ..source_file import Language
+from ..vhdl_parser import remove_comments as remove_vhdl_comments
 from .list import TestList
 from .suites import IndependentSimTestCase, SameSimTestSuite
 
@@ -431,9 +432,7 @@ class TestConfigurationVisitor(ConfigurationVisitor):
             del configs[DEFAULT_NAME]
         return configs.values()
 
-    def create_tests(
-        self, simulator_if, seed, elaborate_only, test_list=None, test_history=None
-    ):  # pylint: disable=too-many-positional-arguments
+    def create_tests(self, simulator_if, seed, elaborate_only, test_list=None, test_history=None):
         """
         Create all tests from this test case which may be several depending on the number of configurations
         """
@@ -520,9 +519,7 @@ def _find_tests(code, file_name, line_offsets=None):
     if line_offsets is None:
         line_offsets = _get_line_offsets(code)
 
-    is_verilog = file_type_of(file_name) in VERILOG_FILE_TYPES
-
-    if is_verilog:
+    if Language.from_suffix(file_name).is_verilog():
         code = _remove_verilog_comments(code)
         regexp = _RE_VERILOG_TEST_CASE
         suite_regexp = _RE_VERILOG_TEST_SUITE

@@ -8,15 +8,21 @@
 Interface towards Aldec Riviera Pro
 """
 
-from pathlib import Path
-import os
-import re
+from __future__ import annotations
+
 import logging
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
 from ..ostools import Process, file_exists
-from ..vhdl_standard import VHDL
-from . import SimulatorInterface, ListOfStringOption, StringOption
+from ..vhdl_standard import VHDLStandard
+from . import ListOfStringOption, SimulatorInterface, StringOption
 from .vsim_simulator_mixin import VsimSimulatorMixin, fix_path
+
+if TYPE_CHECKING:
+    from vunit.source_file import VerilogSourceFile, VHDLSourceFile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -147,15 +153,15 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
             self._libraries.append(library)
             self.create_library(library.name, library.directory, mapped_libraries)
 
-    def compile_source_file_command(self, source_file):
+    def compile_source_file_command(self, source_file: VHDLSourceFile | VerilogSourceFile) -> list[str]:
         """
         Returns the command to compile a single source_file
         """
         if source_file.is_vhdl:
-            return self.compile_vhdl_file_command(source_file)
+            return self.compile_vhdl_file_command(source_file)  # type: ignore
 
         if source_file.is_any_verilog:
-            return self.compile_verilog_file_command(source_file)
+            return self.compile_verilog_file_command(source_file)  # type: ignore
 
         LOGGER.error("Unknown file type: %s", source_file.file_type)
         raise CompileError
@@ -164,7 +170,7 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
         """
         Convert standard to format of Riviera-PRO command line flag
         """
-        if vhdl_standard == VHDL.STD_2019:
+        if vhdl_standard == VHDLStandard.STD_2019:
             if self._version.year is not None:
                 if (self._version.year == 2020 and self._version.month < 4) or (self._version.year < 2020):
                     return "-2018"
@@ -173,28 +179,24 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
 
         return f"-{vhdl_standard!s}"
 
-    def compile_vhdl_file_command(self, source_file):
+    def compile_vhdl_file_command(self, source_file: VHDLSourceFile) -> list[str]:
         """
         Returns the command to compile a VHDL file
         """
 
-        return (
-            [
-                str(Path(self._prefix) / "vcom"),
-                "-quiet",
-                "-j",
-                str(Path(self._sim_cfg_file_name).parent),
-            ]
-            + source_file.compile_options.get("rivierapro.vcom_flags", [])
-            + [
-                self._std_str(source_file.get_vhdl_standard()),
-                "-work",
-                source_file.library.name,
-                source_file.name,
-            ]
-        )
+        return [
+            str(Path(self._prefix) / "vcom"),
+            "-quiet",
+            "-j",
+            str(Path(self._sim_cfg_file_name).parent),
+            *source_file.compile_options.get("rivierapro.vcom_flags", []),
+            self._std_str(source_file.get_vhdl_standard()),
+            "-work",
+            source_file.library.name,
+            str(source_file.name),
+        ]
 
-    def compile_verilog_file_command(self, source_file):
+    def compile_verilog_file_command(self, source_file: VerilogSourceFile) -> list[str]:
         """
         Returns the command to compile a Verilog file
         """
@@ -207,7 +209,7 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
         if source_file.is_system_verilog:
             args += ["-sv2k12"]
         args += source_file.compile_options.get("rivierapro.vlog_flags", [])
-        args += ["-work", source_file.library.name, source_file.name]
+        args += ["-work", source_file.library.name, str(source_file.name)]
         for library in self._libraries:
             args += ["-l", library.name]
         for include_dir in source_file.include_dirs:
@@ -224,10 +226,8 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
         """
         mapped_libraries = mapped_libraries if mapped_libraries is not None else {}
 
-        apath = str(Path(path).parent.resolve())
-
-        if not file_exists(apath):
-            os.makedirs(apath)
+        _path = Path(path).resolve()
+        _path.parent.mkdir(exist_ok=True, parents=True)
 
         if not file_exists(path):
             proc = Process(
@@ -281,9 +281,7 @@ class RivieraProInterface(VsimSimulatorMixin, SimulatorInterface):
             libraries[key] = str((Path(library_cfg_file).parent / (Path(value).parent)).resolve())
         return libraries
 
-    def _create_load_function(
-        self, test_suite_name, config, output_path, optimize_design
-    ):  # pylint: disable=unused-argument
+    def _create_load_function(self, test_suite_name, config, output_path, optimize_design):  # pylint: disable=unused-argument
         """
         Create the vunit_load TCL function that runs the vsim command and loads the design
         """
@@ -346,9 +344,7 @@ proc vunit_load {{}} {{
 
     return false
 }}
-""".format(
-            vsim_flags=" ".join(vsim_flags), break_level=config.vhdl_assert_stop_level
-        )
+""".format(vsim_flags=" ".join(vsim_flags), break_level=config.vhdl_assert_stop_level)
 
         return tcl
 

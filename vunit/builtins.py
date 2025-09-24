@@ -8,13 +8,12 @@
 Functions to add builtin VHDL code to a project for compilation
 """
 
-from pathlib import Path
-from glob import glob
 import logging
+from glob import glob
+from pathlib import Path
 
-from vunit.vhdl_standard import VHDL, VHDLStandard
 from vunit.ui.common import get_checked_file_names_from_globs
-
+from vunit.vhdl_standard import VHDLStandard
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +56,7 @@ class Builtins(object):
             base_file_name = Path(file_name).name
 
             standards = set()
-            for standard in VHDL:
+            for standard in VHDLStandard:
                 standard_name = str(standard)
                 if standard_name + "p" in base_file_name:
                     standards.update(standard.and_later)
@@ -107,7 +106,7 @@ class Builtins(object):
         """
         Add random pkg
         """
-        if not self._vhdl_standard >= VHDL.STD_2008:
+        if not self._vhdl_standard >= VHDLStandard.STD_2008:
             raise RuntimeError("Random only supports vhdl 2008 and later")
 
         self._vunit_lib.add_source_files(VHDL_PATH / "random" / "src" / "*.vhd")
@@ -116,7 +115,7 @@ class Builtins(object):
         """
         Add com library
         """
-        if not self._vhdl_standard >= VHDL.STD_2008:
+        if not self._vhdl_standard >= VHDLStandard.STD_2008:
             raise RuntimeError("Communication package only supports vhdl 2008 and later")
 
         self._add_files(VHDL_PATH / "com" / "src" / "*.vhd")
@@ -125,7 +124,7 @@ class Builtins(object):
         """
         Add verification component library
         """
-        if not self._vhdl_standard >= VHDL.STD_2008:
+        if not self._vhdl_standard >= VHDLStandard.STD_2008:
             raise RuntimeError("Verification component library only supports vhdl 2008 and later")
         self._add_files(VHDL_PATH / "verification_components" / "src" / "*.vhd")
 
@@ -134,7 +133,8 @@ class Builtins(object):
         Check if a library name exists in the project. If not, add it and return a handle.
         """
         if library_name.lower() in [
-            library.lower() for library in self._vunit_obj._project._libraries  # pylint: disable=protected-access
+            library.lower()
+            for library in self._vunit_obj._project._libraries  # pylint: disable=protected-access
         ]:
             LOGGER.warning(message)
             return None
@@ -217,7 +217,7 @@ in your VUnit Git repository? You have to do this first if installing using setu
         """
 
         use_call_paths = self._simulator_class.supports_vhdl_call_paths() and (
-            self._vhdl_standard in VHDL.STD_2019.and_later
+            self._vhdl_standard in VHDLStandard.STD_2019.and_later
         )
         if use_call_paths:
             self._vunit_lib.add_source_file(VHDL_PATH / "logging" / "src" / "location_pkg-body-2019p.vhd")
@@ -231,7 +231,7 @@ in your VUnit Git repository? You have to do this first if installing using setu
                 continue
 
             standards = set()
-            for standard in VHDL:
+            for standard in VHDLStandard:
                 standard_name = str(standard)
                 if standard_name + "p" in base_file_name:
                     standards.update(standard.and_later)

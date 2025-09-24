@@ -8,12 +8,12 @@
 Test the vhdl_standard.py file
 """
 
-from vunit.vhdl_standard import VHDL
+from vunit.vhdl_standard import VHDLStandard
 
 
 def test_valid_standards():
     for std in ["93", "02", "08", "19", "1993", "2002", "2008", "2019"]:
-        VHDL.standard(std)
+        VHDLStandard.resolve(std)
 
 
 def test_error_on_invalid_standard():
@@ -25,53 +25,53 @@ def test_error_on_invalid_standard():
 
 
 def test_equality():
-    assert VHDL.standard("2008") == VHDL.standard("2008")
-    assert VHDL.standard("1993") != VHDL.standard("2008")
-    assert VHDL.standard("93") == VHDL.standard("1993")
+    assert VHDLStandard.resolve("2008") == VHDLStandard.resolve("2008")
+    assert VHDLStandard.resolve("1993") != VHDLStandard.resolve("2008")
+    assert VHDLStandard.resolve("93") == VHDLStandard.resolve("1993")
 
 
 def test_comparison():
-    assert VHDL.standard("1993") < VHDL.standard("2002")
-    assert VHDL.standard("2002") < VHDL.standard("2008")
-    assert VHDL.standard("2008") < VHDL.standard("2019")
+    assert VHDLStandard.resolve("1993") < VHDLStandard.resolve("2002")
+    assert VHDLStandard.resolve("2002") < VHDLStandard.resolve("2008")
+    assert VHDLStandard.resolve("2008") < VHDLStandard.resolve("2019")
 
 
 def test_str():
-    assert str(VHDL.standard("1993")) == "93"
-    assert str(VHDL.standard("2002")) == "2002"
+    assert str(VHDLStandard.resolve("1993")) == "93"
+    assert str(VHDLStandard.resolve("2002")) == "2002"
 
 
 def test_and_later():
-    assert VHDL.STD_1993.and_later == {
-        VHDL.STD_1993,
-        VHDL.STD_2002,
-        VHDL.STD_2008,
-        VHDL.STD_2019,
+    assert VHDLStandard.STD_1993.and_later == {
+        VHDLStandard.STD_1993,
+        VHDLStandard.STD_2002,
+        VHDLStandard.STD_2008,
+        VHDLStandard.STD_2019,
     }
-    assert VHDL.STD_2002.and_later == {
-        VHDL.STD_2002,
-        VHDL.STD_2008,
-        VHDL.STD_2019,
+    assert VHDLStandard.STD_2002.and_later == {
+        VHDLStandard.STD_2002,
+        VHDLStandard.STD_2008,
+        VHDLStandard.STD_2019,
     }
-    assert VHDL.STD_2008.and_later == {VHDL.STD_2008, VHDL.STD_2019}
-    assert VHDL.STD_2019.and_later == {VHDL.STD_2019}
+    assert VHDLStandard.STD_2008.and_later == {VHDLStandard.STD_2008, VHDLStandard.STD_2019}
+    assert VHDLStandard.STD_2019.and_later == {VHDLStandard.STD_2019}
 
 
 def test_and_earlier():
-    assert VHDL.STD_2019.and_earlier == {
-        VHDL.STD_1993,
-        VHDL.STD_2002,
-        VHDL.STD_2008,
-        VHDL.STD_2019,
+    assert VHDLStandard.STD_2019.and_earlier == {
+        VHDLStandard.STD_1993,
+        VHDLStandard.STD_2002,
+        VHDLStandard.STD_2008,
+        VHDLStandard.STD_2019,
     }
-    assert VHDL.STD_2008.and_earlier == {VHDL.STD_1993, VHDL.STD_2002, VHDL.STD_2008}
-    assert VHDL.STD_2002.and_earlier == {VHDL.STD_1993, VHDL.STD_2002}
-    assert VHDL.STD_1993.and_earlier == {VHDL.STD_1993}
+    assert VHDLStandard.STD_2008.and_earlier == {VHDLStandard.STD_1993, VHDLStandard.STD_2002, VHDLStandard.STD_2008}
+    assert VHDLStandard.STD_2002.and_earlier == {VHDLStandard.STD_1993, VHDLStandard.STD_2002}
+    assert VHDLStandard.STD_1993.and_earlier == {VHDLStandard.STD_1993}
 
 
 def test_supports_context():
-    assert not VHDL.STD_2002.supports_context
-    assert VHDL.STD_2008.supports_context
+    assert not VHDLStandard.STD_2002.supports_context
+    assert VHDLStandard.STD_2008.supports_context
 
 
 def _assert_is_invalid(standard_string):
@@ -79,7 +79,7 @@ def _assert_is_invalid(standard_string):
     Check that the standard string produces an exception
     """
     try:
-        VHDL.standard(standard_string)
+        VHDLStandard.resolve(standard_string)
     except ValueError:
         pass
     else:

@@ -10,24 +10,26 @@
 Acceptance test of the VUnit public interface class
 """
 
-import unittest
-from string import Template
-from pathlib import Path
-from os import chdir, getcwd
-from os.path import relpath
 import json
 import re
+import unittest
+from itertools import chain
+from os import chdir, getcwd
+from os.path import relpath
+from pathlib import Path
 from re import MULTILINE
 from shutil import rmtree
+from string import Template
 from unittest import mock
-from tests.common import set_env, with_tempdir, create_vhdl_test_bench_file
-from vunit.ui import VUnit
-from vunit.source_file import VHDL_EXTENSIONS, VERILOG_EXTENSIONS
-from vunit.ostools import renew_path
+
+from tests.common import create_vhdl_test_bench_file, set_env, with_tempdir
 from vunit.builtins import add_verilog_include_dir
+from vunit.ostools import renew_path
 from vunit.sim_if import SimulatorInterface
-from vunit.vhdl_standard import VHDL
+from vunit.source_file import Language
+from vunit.ui import VUnit
 from vunit.ui.preprocessor import Preprocessor
+from vunit.vhdl_standard import VHDLStandard
 
 
 class TestUi(unittest.TestCase):
@@ -232,15 +234,17 @@ end architecture;
         """Test adding a supported filetype, of any case, is accepted."""
         ui = self._create_ui()
         ui.add_library("lib")
-        accepted_extensions = VHDL_EXTENSIONS + VERILOG_EXTENSIONS
-        allowable_extensions = list(accepted_extensions)
-        allowable_extensions.extend([ext.upper() for ext in accepted_extensions])
-        allowable_extensions.append(
-            VHDL_EXTENSIONS[0][0] + VHDL_EXTENSIONS[0][1].upper() + VHDL_EXTENSIONS[0][2:]
-        )  # mixed case
-        for idx, ext in enumerate(allowable_extensions):
-            file_name = self.create_entity_file(idx, ext)
-            ui.add_source_files(file_name, "lib")
+
+        # list of all allowed suffixes
+        suffixes = list(chain.from_iterable(x.suffixes() for x in Language))
+
+        # Test that lower upper and mixed cases are supported
+        cases = (str.upper, str.lower, str.capitalize)
+
+        for idx, ext in enumerate(suffixes):
+            for case in cases:
+                file_name = self.create_entity_file(idx, case(ext))
+                ui.add_source_files(file_name, "lib")
 
     def test_unsupported_source_file_suffixes(self):
         """Test adding an unsupported filetype is rejected"""
@@ -615,40 +619,36 @@ Listed 2 files""".splitlines()
         setup(ui)
         check_stdout(
             ui,
-            "lib.tb_filter.Test 1\n"
-            "lib.tb_filter.Test 2\n"
-            "lib.tb_filter.Test 3\n"
-            "lib.tb_filter.Test 4\n"
-            "Listed 4 tests",
+            "lib.tb_filter.Test 1\nlib.tb_filter.Test 2\nlib.tb_filter.Test 3\nlib.tb_filter.Test 4\nListed 4 tests",
         )
 
         ui = self._create_ui("--list", "*2*")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 2\n" "Listed 1 tests")
+        check_stdout(ui, "lib.tb_filter.Test 2\nListed 1 tests")
 
         ui = self._create_ui("--list", "--with-attribute=.attr0")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 1\n" "lib.tb_filter.Test 2\n" "Listed 2 tests")
+        check_stdout(ui, "lib.tb_filter.Test 1\nlib.tb_filter.Test 2\nListed 2 tests")
 
         ui = self._create_ui("--list", "--with-attribute=.attr2")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 4\n" "Listed 1 tests")
+        check_stdout(ui, "lib.tb_filter.Test 4\nListed 1 tests")
 
         ui = self._create_ui("--list", "--with-attributes", ".attr0", "--with-attributes", ".attr1")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 2\n" "Listed 1 tests")
+        check_stdout(ui, "lib.tb_filter.Test 2\nListed 1 tests")
 
         ui = self._create_ui("--list", "--without-attributes", ".attr0")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 3\n" "lib.tb_filter.Test 4\n" "Listed 2 tests")
+        check_stdout(ui, "lib.tb_filter.Test 3\nlib.tb_filter.Test 4\nListed 2 tests")
 
         ui = self._create_ui("--list", "--without-attributes", ".attr0", "--without-attributes", ".attr1")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 4\n" "Listed 1 tests")
+        check_stdout(ui, "lib.tb_filter.Test 4\nListed 1 tests")
 
         ui = self._create_ui("--list", "--with-attributes", ".attr0", "--without-attributes", ".attr1")
         setup(ui)
-        check_stdout(ui, "lib.tb_filter.Test 1\n" "Listed 1 tests")
+        check_stdout(ui, "lib.tb_filter.Test 1\nListed 1 tests")
 
     @with_tempdir
     def test_export_json(self, tempdir):
@@ -848,7 +848,7 @@ Listed 2 files""".splitlines()
                 file_type="verilog",
                 include_dirs=all_include_dirs,
                 defines=None,
-                vhdl_standard=VHDL.STD_2008,
+                vhdl_standard=VHDLStandard.STD_2008,
                 no_parse=False,
             )
 
@@ -876,7 +876,7 @@ Listed 2 files""".splitlines()
                 file_type="verilog",
                 include_dirs=all_include_dirs,
                 defines=defines,
-                vhdl_standard=VHDL.STD_2008,
+                vhdl_standard=VHDLStandard.STD_2008,
                 no_parse=False,
             )
 
@@ -913,7 +913,7 @@ Listed 2 files""".splitlines()
                         file_type="verilog",
                         include_dirs=all_include_dirs,
                         defines=None,
-                        vhdl_standard=VHDL.STD_2008,
+                        vhdl_standard=VHDLStandard.STD_2008,
                         no_parse=no_parse,
                     )
 
@@ -1294,7 +1294,7 @@ end architecture;
 module rtl4;
 endmodule
 """
-            file_name = str(Path(tempdir) / f"rtl4.v")
+            file_name = str(Path(tempdir) / "rtl4.v")
             self.create_file(file_name, verilog_source)
             rtl.append(lib2.add_source_file(file_name))
 

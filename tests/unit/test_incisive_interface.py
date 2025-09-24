@@ -10,19 +10,19 @@
 Test the Incisive interface
 """
 
-
+import os
 import unittest
 from pathlib import Path
-import os
 from shutil import rmtree
 from unittest import mock
-from vunit.sim_if.incisive import IncisiveInterface
-from vunit.project import Project
-from vunit.ostools import renew_path, write_file, read_file
-from vunit.test.bench import Configuration
-from vunit.vhdl_standard import VHDL
+
 from tests.common import create_tempdir
 from tests.unit.test_test_bench import Entity
+from vunit.ostools import read_file, renew_path, write_file
+from vunit.project import Project
+from vunit.sim_if.incisive import IncisiveInterface
+from vunit.test.bench import Configuration
+from vunit.vhdl_standard import VHDLStandard
 
 
 class TestIncisiveInterface(unittest.TestCase):
@@ -40,7 +40,7 @@ class TestIncisiveInterface(unittest.TestCase):
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("2008"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard="2008")
         simif.compile_project(project)
         args_file = str(Path(self.output_path) / "irun_compile_vhdl_file_lib.args")
         check_output.assert_called_once_with([str(Path("prefix") / "irun"), "-f", args_file], env=simif.get_env())
@@ -88,7 +88,7 @@ define work "%s/libraries/work"
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("2002"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard="2002")
         simif.compile_project(project)
         args_file = str(Path(self.output_path) / "irun_compile_vhdl_file_lib.args")
         check_output.assert_called_once_with([str(Path("prefix") / "irun"), "-f", args_file], env=simif.get_env())
@@ -122,7 +122,7 @@ define work "%s/libraries/work"
         project = Project()
         project.add_library("lib", "lib_path")
         write_file("file.vhd", "")
-        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDL.standard("93"))
+        project.add_source_file("file.vhd", "lib", file_type="vhdl", vhdl_standard=VHDLStandard.resolve("93"))
         simif.compile_project(project)
         args_file = str(Path(self.output_path) / "irun_compile_vhdl_file_lib.args")
         check_output.assert_called_once_with([str(Path("prefix") / "irun"), "-f", args_file], env=simif.get_env())
@@ -499,7 +499,7 @@ define work "%s/libraries/work"
         write_file("file.vhd", "")
         project.add_source_file("file.vhd", "lib", file_type="vhdl")
 
-        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value="") as dummy:
+        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value=""):
             simif.compile_project(project)
 
         config = make_config()
@@ -587,7 +587,7 @@ define work "%s/libraries/work"
         write_file("file.vhd", "")
         project.add_source_file("file.vhd", "lib", file_type="vhdl")
 
-        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value="") as dummy:
+        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value=""):
             simif.compile_project(project)
 
         config = make_config(verilog=True)
@@ -885,7 +885,7 @@ define work "%s/libraries/work"
         project.add_source_file("file.vhd", "lib", file_type="vhdl")
 
         simif = IncisiveInterface(prefix="prefix", output_path=self.output_path, gui=True)
-        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value="") as dummy:
+        with mock.patch("vunit.sim_if.check_output", autospec=True, return_value=""):
             simif.compile_project(project)
         config = make_config()
         self.assertTrue(simif.simulate("suite_output_path", "test_suite_name", config))

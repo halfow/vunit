@@ -7,50 +7,97 @@
 """
 Functionality to represent and operate on VHDL and Verilog source files
 """
-from pathlib import Path
-from typing import Union
+
+from __future__ import annotations
+
 import logging
-from copy import copy
 import traceback
-from vunit.sim_if.factory import SIMULATOR_FACTORY
-from vunit.hashing import hash_string
-from vunit.vhdl_parser import VHDLReference
+from copy import copy
+from enum import Enum
+from itertools import chain
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from vunit.cached import file_content_hash
+from vunit.design_unit import DesignUnit, Entity, Module, VHDLDesignUnit
+from vunit.hashing import hash_string
 from vunit.parsing.encodings import HDL_FILE_ENCODING
-from vunit.design_unit import DesignUnit, VHDLDesignUnit, Entity, Module
+from vunit.sim_if.factory import SIMULATOR_FACTORY
+from vunit.vhdl_parser import VHDLReference
 from vunit.vhdl_standard import VHDLStandard
-from vunit.library import Library
+
+if TYPE_CHECKING:
+    from vunit.library import Library
+
 
 LOGGER = logging.getLogger(__name__)
 
 
-class SourceFile(object):
+class Language(str, Enum):
+    """HDL Enum with convenience methods."""
+
+    VHDL = "vhdl"
+    VERILOG = "verilog"
+    SYSTEMVERILOG = "systemverilog"
+
+    def suffixes(self) -> tuple[str, ...]:
+        """Returns the known suffixes of the given language."""
+        _suffixes = {
+            self.__class__.VHDL: (".vhd", ".vhdl", ".vho"),
+            self.__class__.VERILOG: (".v", ".vp", ".vams", ".vo"),
+            self.__class__.SYSTEMVERILOG: (".sv",),
+        }
+        return _suffixes[self]
+
+    def is_verilog(self):
+        """Is Verilog or System Verilog."""
+        return self in (self.__class__.VERILOG, self.__class__.SYSTEMVERILOG)
+
+    @classmethod
+    def _missing_(cls, value):
+        """Guide the towards correct usage."""
+        allowed = ", ".join([repr(m.value) for m in cls])
+        raise ValueError(f"{value} is not a valid {cls.__name__}.  Allowed values: {allowed}")
+
+    @classmethod
+    def from_suffix(cls, file: str | Path) -> Language:
+        """Resolve language from file type."""
+        suffix = Path(file).suffix.lower()
+        for lang in cls:
+            if suffix in lang.suffixes():
+                return lang
+
+        suffixes = ", ".join(chain.from_iterable(x.suffixes() for x in cls))
+        raise RuntimeError(f"Unsupported suffix {suffix!r} of {file!s}, supported suffixes are: {suffixes}")
+
+
+class SourceFile:
     """
     Represents a generic source file
     """
 
-    def __init__(self, name, library, file_type):
-        self.name = name
+    def __init__(self, name: Path, library: Library, file_type: Language):
+        self.name = Path(name)
         self.library = library
         self.file_type = file_type
-        self.design_units = []
+        self.design_units: list[DesignUnit] = []
         self._content_hash = None
-        self._compile_options = {}
+        self._compile_options = {}  # type: ignore
 
         # The file name before preprocessing
-        self.original_name = name
+        self.original_name = Path(name)
 
     @property
     def is_vhdl(self):
-        return self.file_type == "vhdl"
+        return self.file_type == Language.VHDL
 
     @property
     def is_system_verilog(self):
-        return self.file_type == "systemverilog"
+        return self.file_type == Language.SYSTEMVERILOG
 
     @property
     def is_any_verilog(self):
-        return self.file_type in VERILOG_FILE_TYPES
+        return self.file_type.is_verilog()
 
     def __eq__(self, other):
         if isinstance(other, type(self)):
@@ -126,9 +173,9 @@ class VerilogSourceFile(SourceFile):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        file_type,
-        name,
-        library,
+        file_type: Language,
+        name: Path,
+        library: Library,
         *,
         verilog_parser,
         database,
@@ -136,10 +183,10 @@ class VerilogSourceFile(SourceFile):
         defines=None,
         no_parse=False,
     ):
-        SourceFile.__init__(self, str(name), library, file_type)
-        self.package_dependencies = []
-        self.module_dependencies = []
-        self.include_dirs = include_dirs if include_dirs is not None else []
+        SourceFile.__init__(self, name, library, file_type)
+        self.package_dependencies = []  # type: ignore
+        self.module_dependencies = []  # type: ignore
+        self.include_dirs = include_dirs if include_dirs is not None else []  # type: ignore
         self.defines = defines.copy() if defines is not None else {}
         self._content_hash = file_content_hash(self.name, encoding=HDL_FILE_ENCODING, database=database)
 
@@ -205,18 +252,18 @@ class VHDLSourceFile(SourceFile):
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        name: Union[str, Path],
+        name: Path,
         library: Library,
         *,
         vhdl_parser,
         database,
-        vhdl_standard: VHDLStandard,
+        vhdl_standard: VHDLStandard | str,
         no_parse=False,
     ):
-        SourceFile.__init__(self, str(name), library, "vhdl")
+        SourceFile.__init__(self, name, library, Language.VHDL)
         self.dependencies = []  # type: ignore
         self.depending_components = []  # type: ignore
-        self._vhdl_standard = vhdl_standard
+        self._vhdl_standard: VHDLStandard = VHDLStandard.resolve(vhdl_standard)
 
         if not no_parse:
             try:
@@ -343,28 +390,3 @@ class VHDLSourceFile(SourceFile):
         """
         assert self.library == library
         library.add_vhdl_design_units(self.design_units)
-
-
-# lower case representation of supported extensions
-VHDL_EXTENSIONS = (".vhd", ".vhdl", ".vho")
-VERILOG_EXTENSIONS = (".v", ".vp", ".vams", ".vo")
-SYSTEM_VERILOG_EXTENSIONS = (".sv",)
-VERILOG_FILE_TYPES = ("verilog", "systemverilog")
-FILE_TYPES = ("vhdl",) + VERILOG_FILE_TYPES
-
-
-def file_type_of(file_name):
-    """
-    Return the file type of file_name based on the file ending
-    """
-    ext = str(Path(file_name).suffix)
-    if ext.lower() in VHDL_EXTENSIONS:
-        return "vhdl"
-
-    if ext.lower() in VERILOG_EXTENSIONS:
-        return "verilog"
-
-    if ext.lower() in SYSTEM_VERILOG_EXTENSIONS:
-        return "systemverilog"
-
-    raise RuntimeError(f"Unknown file ending '{ext!s}' of {file_name!s}")

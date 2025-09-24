@@ -11,42 +11,37 @@ Public VUnit User Interface (UI)
 """
 
 import csv
+import json
+import logging
+import os
+import pickle
 import sys
 import traceback
-import logging
-import json
-import os
-import ast
-import pickle
-from typing import Optional, Set, Union, Iterable
-from pathlib import Path
 from fnmatch import fnmatch
-from glob import glob
+from pathlib import Path
+from typing import Iterable, Optional, Set, Union
 
-from ..database import PickledDataBase, DataBase
 from .. import ostools
-from ..vunit_cli import VUnitCLI
-from ..sim_if.factory import SIMULATOR_FACTORY
-from ..sim_if import SimulatorInterface
+from ..builtins import Builtins
+from ..check_preprocessor import CheckPreprocessor
 from ..color_printer import COLOR_PRINTER, NO_COLOR_PRINTER
-
-from ..project import Project
+from ..database import DataBase, PickledDataBase
 from ..exceptions import CompileError
 from ..location_preprocessor import LocationPreprocessor
-from ..check_preprocessor import CheckPreprocessor
 from ..parsing.encodings import HDL_FILE_ENCODING
-from ..builtins import Builtins
-from ..vhdl_standard import VHDL, VHDLStandard
+from ..project import Project
+from ..sim_if import SimulatorInterface
+from ..sim_if.factory import SIMULATOR_FACTORY
 from ..test.bench_list import TestBenchList
+from ..test.list import TestList
 from ..test.report import TestReport
 from ..test.runner import TestRunner
-from ..test.list import TestList
-from ..dependency_graph import CircularDependencyException
-
-from .common import LOGGER, TEST_OUTPUT_PATH, select_vhdl_standard, check_not_empty
-from .source import SourceFile, SourceFileList
+from ..vhdl_standard import VHDLStandard
+from ..vunit_cli import VUnitCLI
+from .common import LOGGER, TEST_OUTPUT_PATH, check_not_empty, select_vhdl_standard
 from .library import Library, LibraryList
 from .results import Results
+from .source import SourceFile, SourceFileList
 
 
 class VUnit(object):  # pylint: disable=too-many-instance-attributes, too-many-public-methods
@@ -225,7 +220,7 @@ class VUnit(object):  # pylint: disable=too-many-instance-attributes, too-many-p
         if vhdl_standard is None:
             return self._vhdl_standard
 
-        return VHDL.standard(vhdl_standard)
+        return VHDLStandard.resolve(vhdl_standard)
 
     def add_external_library(self, library_name, path: Union[str, Path], vhdl_standard: Optional[str] = None):
         """
@@ -493,7 +488,7 @@ class VUnit(object):  # pylint: disable=too-many-instance-attributes, too-many-p
 
         files = self.get_source_files(fstr, library_name, allow_empty=True)
         if len(files) > 1:
-            raise ValueError(f"Found file named '{fstr!s}' in multiple-libraries, " "add explicit library_name.")
+            raise ValueError(f"Found file named '{fstr!s}' in multiple-libraries, add explicit library_name.")
         if not files:
             if library_name is None:
                 raise ValueError(f"Found no file named '{fstr!s}'")
@@ -538,7 +533,7 @@ class VUnit(object):  # pylint: disable=too-many-instance-attributes, too-many-p
 
         return SourceFileList(results)
 
-    def add_source_files(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def add_source_files(  # pylint: disable=too-many-arguments
         self,
         pattern,
         library_name: str,
@@ -583,7 +578,7 @@ class VUnit(object):  # pylint: disable=too-many-instance-attributes, too-many-p
             file_type=file_type,
         )
 
-    def add_source_file(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def add_source_file(  # pylint: disable=too-many-arguments
         self,
         file_name: Union[str, Path],
         library_name: str,

@@ -10,15 +10,18 @@
 """
 Verilog parsing functionality
 """
-from pathlib import Path
+
 import logging
+from pathlib import Path
+
+from vunit.ostools import read_file
 from vunit.parsing.tokenizer import (
-    TokenStream,
-    Token,
-    add_previous,
-    strip_previous,
     EOFException,
     LocationException,
+    Token,
+    TokenStream,
+    add_previous,
+    strip_previous,
 )
 from vunit.parsing.verilog.tokens import (
     COMMA,
@@ -35,7 +38,6 @@ from vunit.parsing.verilog.tokens import (
     STRING,
     WHITESPACE,
 )
-from vunit.ostools import read_file
 
 LOGGER = logging.getLogger(__name__)
 
@@ -81,7 +83,7 @@ class VerilogPreprocessor(object):
 
         return result
 
-    def preprocessor(  # pylint: disable=too-many-arguments,too-many-branches,too-many-positional-arguments
+    def preprocessor(  # pylint: disable=too-many-arguments,too-many-branches
         self, token, stream, defines, include_paths, included_files
     ):
         """
@@ -162,7 +164,7 @@ class VerilogPreprocessor(object):
                     if token.value == "end_protected":
                         return
 
-    def expand_macro(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def expand_macro(  # pylint: disable=too-many-arguments
         self, macro_token, stream, defines, include_paths, included_files
     ):
         """
@@ -254,9 +256,7 @@ class VerilogPreprocessor(object):
         stream.skip_while(NEWLINE)
         return result
 
-    def include(
-        self, token, stream, include_paths, included_files, defines
-    ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def include(self, token, stream, include_paths, included_files, defines):  # pylint: disable=too-many-arguments
         """
         Handle `include directive
         """

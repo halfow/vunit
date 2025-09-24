@@ -8,20 +8,21 @@
 Provided functionality to run a suite of test in a robust way
 """
 
+import logging
 import os
+import string
+import sys
+import threading
+import time
+import traceback
+from contextlib import contextmanager
+from datetime import datetime
 from multiprocessing import cpu_count
 from pathlib import Path
-import traceback
-import threading
-import sys
-import time
-import logging
-import string
-from datetime import datetime
-from contextlib import contextmanager
+
 from .. import ostools
 from ..hashing import hash_string
-from .report import PASSED, FAILED, SKIPPED
+from .report import FAILED, PASSED, SKIPPED
 
 LOGGER = logging.getLogger(__name__)
 
@@ -198,9 +199,7 @@ class TestRunner(object):  # pylint: disable=too-many-instance-attributes
 
         return str(Path(output_path) / full_name)
 
-    def _add_skipped_tests(
-        self, test_suite, results, start_time, num_tests, output_file_name
-    ):  # pylint: disable=too-many-positional-arguments
+    def _add_skipped_tests(self, test_suite, results, start_time, num_tests, output_file_name):
         """
         Add skipped tests
         """
@@ -208,9 +207,7 @@ class TestRunner(object):  # pylint: disable=too-many-instance-attributes
             results[name] = SKIPPED
         self._add_results(test_suite, results, start_time, num_tests, output_file_name)
 
-    def _run_test_suite(  # pylint: disable=too-many-locals
-        self, test_suite, write_stdout, num_tests, output_path, output_file_name
-    ):  # pylint: disable=too-many-positional-arguments
+    def _run_test_suite(self, test_suite, write_stdout, num_tests, output_path, output_file_name):  # pylint: disable=too-many-locals
         """
         Run the actual test suite
         """
@@ -320,9 +317,7 @@ class TestRunner(object):  # pylint: disable=too-many-instance-attributes
             for line in fread.readlines():
                 self._stdout_ansi.write(line)
 
-    def _add_results(
-        self, test_suite, results, start_time, num_tests, output_file_name
-    ):  # pylint: disable=too-many-positional-arguments
+    def _add_results(self, test_suite, results, start_time, num_tests, output_file_name):
         """
         Add results to test report
         """

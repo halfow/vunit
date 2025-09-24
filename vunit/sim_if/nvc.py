@@ -8,20 +8,26 @@
 Interface for NVC simulator
 """
 
-from multiprocessing import cpu_count
-from pathlib import Path
-from os import environ, makedirs, remove
+from __future__ import annotations
+
 import logging
-import subprocess
-import shlex
 import re
-from sys import stdout  # To avoid output catched in non-verbose mode
+import shlex
+import subprocess
+from multiprocessing import cpu_count
+from os import environ, makedirs, remove
+from pathlib import Path
+from sys import stdout
+from typing import TYPE_CHECKING
+
 from ..exceptions import CompileError
 from ..ostools import Process
-from . import SimulatorInterface, ListOfStringOption, StringOption
-from . import run_command
+from ..vhdl_standard import VHDLStandard
+from . import ListOfStringOption, SimulatorInterface, StringOption, run_command
 from ._viewermixin import ViewerMixin
-from ..vhdl_standard import VHDL
+
+if TYPE_CHECKING:
+    from vunit.source_file import SourceFile
 
 LOGGER = logging.getLogger(__name__)
 
@@ -102,7 +108,7 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
         """
         Return if the simulation should fail with nonzero exit codes
         """
-        return self._vhdl_standard >= VHDL.STD_2008
+        return self._vhdl_standard >= VHDLStandard.STD_2008
 
     @classmethod
     def _get_version_output(cls, prefix):
@@ -176,13 +182,13 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
         )
 
         if not vhdl_standards:
-            self._vhdl_standard = VHDL.STD_2008
+            self._vhdl_standard = VHDLStandard.STD_2008
         elif len(vhdl_standards) != 1:
             raise RuntimeError(f"NVC cannot handle mixed VHDL standards, found {vhdl_standards!r}")
         else:
             self._vhdl_standard = list(vhdl_standards)[0]
 
-    def compile_source_file_command(self, source_file):
+    def compile_source_file_command(self, source_file: SourceFile):
         """
         Returns the command to compile a single source_file
         """
@@ -192,25 +198,6 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
         LOGGER.error("Unknown file type: %s", source_file.file_type)
         raise CompileError
 
-    @staticmethod
-    def _std_str(vhdl_standard):
-        """
-        Convert standard to format of NVC command line flag
-        """
-        if vhdl_standard == VHDL.STD_1993:
-            return "1993"
-
-        if vhdl_standard == VHDL.STD_2002:
-            return "2002"
-
-        if vhdl_standard == VHDL.STD_2008:
-            return "2008"
-
-        if vhdl_standard == VHDL.STD_2019:
-            return "2019"
-
-        raise ValueError(f"Invalid VHDL standard {vhdl_standard}")
-
     def _get_command(self, std, worklib, workpath):
         """
         Get basic NVC command with global options
@@ -218,7 +205,7 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
         cmd = [
             str(Path(self._prefix) / self.executable),
             f"--work={worklib}:{workpath!s}",
-            f"--std={self._std_str(std)}",
+            f"--std={int(VHDLStandard.resolve(std))}",
         ]
 
         for library in self._project.get_libraries():
@@ -239,12 +226,10 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
         cmd += ["-a"]
         cmd += source_file.compile_options.get("nvc.a_flags", [])
 
-        cmd += [source_file.name]
+        cmd += [str(source_file.name)]
         return cmd
 
-    def simulate(
-        self, output_path, test_suite_name, config, elaborate_only
-    ):  # pylint: disable=too-many-branches, disable=too-many-statements
+    def simulate(self, output_path, test_suite_name, config, elaborate_only):  # pylint: disable=too-many-branches, disable=too-many-statements
         """
         Simulate with entity as top level using generics
         """
@@ -325,7 +310,7 @@ class NVCInterface(SimulatorInterface, ViewerMixin):  # pylint: disable=too-many
             if init_file is not None:
                 cmd += ["--script", str(Path(init_file).resolve())]
 
-            stdout.write(f'{" ".join(cmd)}\n')
+            stdout.write(f"{' '.join(cmd)}\n")
             subprocess.call(cmd)
 
         return status

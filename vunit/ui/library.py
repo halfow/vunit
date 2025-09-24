@@ -8,17 +8,20 @@
 UI classes Library and LibraryList
 """
 
-from pathlib import Path
+from __future__ import annotations
+
 from fnmatch import fnmatch
+from pathlib import Path
 from typing import Optional
-from ..vhdl_standard import VHDL, VHDLStandard
-from ..project import Project
-from ..source_file import file_type_of, FILE_TYPES, VERILOG_FILE_TYPES
+
 from ..builtins import add_verilog_include_dir
+from ..project import Project
+from ..source_file import Language
+from ..vhdl_standard import VHDLStandard
 from .common import check_not_empty, get_checked_file_names_from_globs
+from .packagefacade import PackageFacade
 from .source import SourceFile, SourceFileList
 from .testbench import TestBench
-from .packagefacade import PackageFacade
 
 
 class LibraryList(list):
@@ -329,7 +332,7 @@ class Library(object):
         """
         return self._parent.get_source_files(pattern, self._library_name, allow_empty)
 
-    def add_source_files(  # pylint: disable=too-many-arguments, too-many-positional-arguments
+    def add_source_files(  # pylint: disable=too-many-arguments
         self,
         pattern,
         preprocessors=None,
@@ -375,7 +378,7 @@ class Library(object):
             ]
         )
 
-    def add_source_file(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def add_source_file(  # pylint: disable=too-many-arguments
         self,
         file_name,
         preprocessors=None,
@@ -406,12 +409,9 @@ class Library(object):
         """
         file_name = Path(file_name).resolve()
 
-        if file_type is None:
-            file_type = file_type_of(file_name)
-        elif file_type not in FILE_TYPES:
-            raise ValueError(f"file_type {file_type!r} not in {FILE_TYPES!r}")
+        file_type = Language.from_suffix(file_name) if file_type is None else Language(file_type)
 
-        if file_type in VERILOG_FILE_TYPES:
+        if file_type.is_verilog():
             include_dirs = include_dirs if include_dirs is not None else []
             include_dirs = add_verilog_include_dir(include_dirs)
 
@@ -478,7 +478,7 @@ class Library(object):
 
         return self.test_bench(name)
 
-    def test_bench(self, name):
+    def test_bench(self, name: str):
         """
         Get a test bench within this library
 
@@ -511,7 +511,7 @@ class Library(object):
             f"No test benches found within library {self._library_name!s}",
         )
 
-    def _which_vhdl_standard(self, vhdl_standard: Optional[str]) -> VHDLStandard:
+    def _which_vhdl_standard(self, vhdl_standard: str | VHDLStandard | None) -> VHDLStandard:
         """
         Return default vhdl_standard if the argument is None
         The argument is a string from the user
@@ -519,4 +519,4 @@ class Library(object):
         if vhdl_standard is None:
             return self._project.get_library(self._library_name).vhdl_standard
 
-        return VHDL.standard(vhdl_standard)
+        return VHDLStandard.resolve(vhdl_standard)

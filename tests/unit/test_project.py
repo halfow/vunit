@@ -10,18 +10,18 @@
 Test the project functionality
 """
 
-
+import itertools
+import os
 import unittest
 from pathlib import Path
-import os
 from shutil import rmtree
 from time import sleep
-import itertools
 from unittest import mock
+
 from vunit.exceptions import CompileError
 from vunit.ostools import renew_path, write_file
 from vunit.project import Project
-from vunit.source_file import file_type_of
+from vunit.source_file import Language
 
 
 class TestProject(unittest.TestCase):  # pylint: disable=too-many-public-methods
@@ -144,7 +144,7 @@ entity foo is
 end entity;
 """,
         )
-        logger.error.assert_called_once_with("Failed to parse %s", "file.vhd")
+        logger.error.assert_called_once_with("Failed to parse %s", Path("file.vhd"))
         self.assertEqual(source_file.design_units, [])
 
     def test_finds_entity_instantiation_dependencies(self):
@@ -340,9 +340,7 @@ end package body;
                 """
 library {library_clause};
 use {use_clause}.PKG.all;
-            """.format(
-                    library_clause=library_clause, use_clause=use_clause
-                ),
+            """.format(library_clause=library_clause, use_clause=use_clause),
             )
             self.assert_compiles(package, before=module)
 
@@ -353,7 +351,7 @@ use {use_clause}.PKG.all;
         except RuntimeError as exception:
             self.assertEqual(
                 str(exception),
-                "Library name 'lib' not case-insensitive unique. " "Library name 'Lib' previously defined",
+                "Library name 'lib' not case-insensitive unique. Library name 'Lib' previously defined",
             )
         else:
             raise AssertionError("RuntimeError not raised")
@@ -1582,9 +1580,7 @@ end architecture;
         )
 
         self.assertRaises(CompileError, self.project.get_files_in_compile_order)
-        logger.error.assert_called_once_with(
-            "Found circular dependency:\n%s", "ent1.vhd ->\n" "ent2.vhd ->\n" "ent1.vhd"
-        )
+        logger.error.assert_called_once_with("Found circular dependency:\n%s", "ent1.vhd ->\nent2.vhd ->\nent1.vhd")
 
     def test_order_of_adding_libraries_is_kept(self):
         for order in itertools.combinations(range(4), 4):
@@ -1596,12 +1592,12 @@ end architecture;
             self.assertEqual(library_names, ["lib%i" % idx for idx in order])
 
     def test_file_type_of(self):
-        self.assertEqual(file_type_of("file.vhd"), "vhdl")
-        self.assertEqual(file_type_of("file.vhdl"), "vhdl")
-        self.assertEqual(file_type_of("file.sv"), "systemverilog")
-        self.assertEqual(file_type_of("file.v"), "verilog")
-        self.assertEqual(file_type_of("file.vams"), "verilog")
-        self.assertRaises(RuntimeError, file_type_of, "file.foo")
+        self.assertEqual(Language.from_suffix("file.vhd"), "vhdl")
+        self.assertEqual(Language.from_suffix("file.vhdl"), "vhdl")
+        self.assertEqual(Language.from_suffix("file.sv"), "systemverilog")
+        self.assertEqual(Language.from_suffix("file.v"), "verilog")
+        self.assertEqual(Language.from_suffix("file.vams"), "verilog")
+        self.assertRaises(RuntimeError, Language.from_suffix, "file.foo")
 
     def test_circular_dependencies_through_libraries(self):
         """
@@ -1852,7 +1848,7 @@ end architecture;
             project = Project()
             project.add_library("lib", "lib_path")
             source_file = project.add_source_file("file.vhd", library_name="lib", file_type="vhdl", vhdl_standard=std)
-            self.assertEqual(source_file.get_vhdl_standard(), std)
+            self.assertEqual(str(source_file.get_vhdl_standard()), std)
 
     def test_add_source_file_has_no_parse_vhdl(self):
         for no_parse in (True, False):
@@ -1867,7 +1863,7 @@ end architecture;
             )
             project.add_library("lib", "work_path")
             source_file = project.add_source_file(
-                file_name, "lib", file_type=file_type_of(file_name), no_parse=no_parse
+                file_name, "lib", file_type=Language.from_suffix(file_name), no_parse=no_parse
             )
             self.assertEqual(len(source_file.design_units), int(not no_parse))
 
@@ -1884,7 +1880,7 @@ end architecture;
             )
             project.add_library("lib", "work_path")
             source_file = project.add_source_file(
-                file_name, "lib", file_type=file_type_of(file_name), no_parse=no_parse
+                file_name, "lib", file_type=Language.from_suffix(file_name), no_parse=no_parse
             )
             self.assertEqual(len(source_file.design_units), int(not no_parse))
 
@@ -1934,7 +1930,7 @@ use builtin_lib.all;
         """
         write_file(file_name, contents)
         source_file = self.project.add_source_file(
-            file_name, library_name, file_type=file_type_of(file_name), defines=defines
+            file_name, library_name, file_type=Language.from_suffix(file_name), defines=defines
         )
         return source_file
 
@@ -1979,14 +1975,14 @@ use builtin_lib.all;
         """
         Assert that there is a package body with package_name withing source_file_name
         """
-        unit = self._find_design_unit(source_file_name, "package body", package_name, False, package_name)
+        unit = self._find_design_unit(Path(source_file_name), "package body", package_name, False, package_name)
         self.assertIsNotNone(unit)
 
     def assert_has_package(self, source_file_name, name):
         """
         Assert that there is a package with name withing source_file_name
         """
-        unit = self._find_design_unit(source_file_name, "package", name)
+        unit = self._find_design_unit(Path(source_file_name), "package", name)
         self.assertIsNotNone(unit)
 
     def assert_has_entity(self, source_file, name, generic_names=None, architecture_names=None):
@@ -2009,7 +2005,7 @@ use builtin_lib.all;
         """
         Assert that there is an architecture with name of entity_name within source_file_name
         """
-        unit = self._find_design_unit(source_file_name, "architecture", name, False, entity_name)
+        unit = self._find_design_unit(Path(source_file_name), "architecture", name, False, entity_name)
         self.assertIsNotNone(unit)
 
     def assert_has_component_instantiation(self, source_file_name, component_name):

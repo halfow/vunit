@@ -9,6 +9,7 @@ UI class TestBench
 """
 
 from fnmatch import fnmatch
+
 from .common import lower_generics
 from .test import Test
 
@@ -130,7 +131,7 @@ class TestBench(object):
         """
         self._test_bench.set_post_check(value)
 
-    def add_config(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def add_config(  # pylint: disable=too-many-arguments
         self,
         name,
         generics=None,
